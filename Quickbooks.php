@@ -9,9 +9,12 @@
 namespace omcrn\quickbooks;
 
 use Exception;
+use QuickBooksOnline\API\Core\OAuth\OAuth2\OAuth2Client;
+use QuickBooksOnline\API\Core\ServiceContext;
 use QuickBooksOnline\API\DataService\DataService;
 use QuickBooksOnline\API\Facades\Customer;
 use QuickBooksOnline\API\Facades\Invoice;
+use QuickBooksOnline\API\PlatformService\PlatformService;
 use Yii;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
@@ -81,6 +84,10 @@ class Quickbooks extends Component
         return $dataService;
     }
 
+    // ერთ საათში ვადა გასდის access token-ს და გვჭირდება refresh token-ის გამოყენებით განახლება
+    // თვითონ refresh token 101 დღიანია, ამის მერე ყველა ვარიანტში CONNECT QUICKBOOKS ღილაკზეა დაჭერა საჭირო
+    // თუ refresh token-ს ვადა აქვს გასული, ან საერთოდ არაა დაკონეკტებული, ამ მეთოდმა უნდა ამოაგდოს შეტყობინება, რომ საჭიროა ღილაკზე დაჭერა
+    // წარმატებული რეკონეკტის მერე ბარემ DataService-ის ინსტანსსაც შევქმნი და დავაბრუნებ
     static function reconnect(){
         $ks = Yii::$app->keyStorage;
 
@@ -136,6 +143,8 @@ class Quickbooks extends Component
         $ks->set('quickbooks.access-token-expires-in', $result['expires_in']);
         $ks->set('quickbooks.refresh-token', $result['refresh_token']);
         $ks->set('quickbooks.refresh-token-expires-in', $result['x_refresh_token_expires_in']);
+
+        return self::dataServiceInit();
     }
 
     static function dataServiceCheckRetry(DataService $dataService, $object){
@@ -148,17 +157,9 @@ class Quickbooks extends Component
             echo "The Response message is: " . $error->getResponseBody() . "\n";
             if (401 == $statusCode){
                 // 401 == ვადაგასულ ტოკენს, ამიტომ რეკონეკტი
-                self::reconnect();
-                // თავიდან ვცადოთ ობიექტის შენახვა
-                $dataService = self::dataServiceInit();
-                $dataService->add($object);
-                // ისევ შევამოწმოთ ერორზე
-                $error2 = $dataService->getLastError();
-                // თუ ერორი აღარაა, დავაბრუნოთ ობიექტი, თუ არადა დავარტყათ. ისევ 401-ზე ვეღარ გავიდოდა?
-                if ($error2 !== null){
-                    throw new Exception($error2->getHttpStatusCode() . ' ' . $error2->getOAuthHelperError());
-                }
-                return $resultObject;
+                $dataService = self::reconnect();
+                // !!! რეკურსია
+                return self::dataServiceCheckRetry($dataService, $object);
             }
             else{
                 throw new Exception($statusCode . ' ' . $error->getOAuthHelperError());
