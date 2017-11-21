@@ -9,12 +9,9 @@
 namespace omcrn\quickbooks;
 
 use Exception;
-use QuickBooksOnline\API\Core\OAuth\OAuth2\OAuth2Client;
-use QuickBooksOnline\API\Core\ServiceContext;
 use QuickBooksOnline\API\DataService\DataService;
 use QuickBooksOnline\API\Facades\Customer;
 use QuickBooksOnline\API\Facades\Invoice;
-use QuickBooksOnline\API\PlatformService\PlatformService;
 use Yii;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
@@ -137,6 +134,9 @@ class Quickbooks extends Component
             $result = json_decode($result, true);
         }
         curl_close($curl);
+        if (isset($result['error'])){
+            throw new Exception($result['error'] . '. Need to click CONNECT QUICKBOOKS button');
+        }
 
         // მიღებული ტოკენების შენახვა ბაზაში, key_storage_item ცხრილში
         $ks->set('quickbooks.access-token', $result['access_token']);
