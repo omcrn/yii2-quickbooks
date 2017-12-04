@@ -18,6 +18,7 @@ class Quickbooks extends Component
     public $discoveryDocumentUrl;
     public $clientId;
     public $clientSecret;
+    public $oauthScope;
     public $accessToken;
     public $refreshToken;
     /**
@@ -52,6 +53,98 @@ class Quickbooks extends Component
         if (!$dataService)
             throw new InvalidConfigException("Problem while initializing DataService.\n");
         $this->dataService = $dataService;
+    }
+
+    // two-step oauth2 process
+    // tokens are saved in db and in instance and new DataService is instantiated after a successful connect
+    public function connect(){
+        $ks = Yii::$app->keyStorage;
+        $session = Yii::$app->session;
+        var_dump(Yii::$app->request->get());
+
+        // discovery document
+        $discoveryDocument = json_decode(file_get_contents($this->discoveryDocumentUrl), true);
+
+        // ready the params, just for readability
+
+        //სადაც იგზავნება GET პირველ ნაბიჯზე. discovery document-დან მომაქვს
+        $authRequestUrl = $discoveryDocument['authorization_endpoint']; //$configs['authorizationRequestUrl'];
+        //სადაც იგზავნება POST მეორე ნაბიჯზე, ესეც discovery document-დან მომაქვს
+        $tokenEndPointUrl = $discoveryDocument['token_endpoint']; //$configs['tokenEndPointUrl'];
+
+        $redirectUri = 'http://victorian-society.dev' . $ks->get('quickbooks.redirect-url');
+
+        // დოკუმენტაციაში წერია, რომ QBO-ს მიმდინარე ვერსიისათვის ყოველთვის იქნება code, მაინც გავიტანე ცვლადში,
+        // თუ ოდესმე შეიცვლება, მარტივად მივაგნებ
+        $responseType = 'code';
+
+        //დოკუმენტაციის მიხედვით აქ უნდა იყოს authorization_code
+        $grantType= 'authorization_code';
+
+        //თუ არ მოყვა code ესე იგი oauth2-ის პირველ ნაბიჯზე ვარ
+        $code = Yii::$app->request->get('code');
+        if (!$code)
+        {
+            //სესიაში შევინახოთ state მეორე ნაბიჯზე მოსულთან შესადარებლად
+            $session->set('oauth_state', rand());
+
+            $authUrl = $discoveryDocument['authorization_endpoint'] . '?client_id=' . $this->clientId .
+                '&response_type=' . $responseType . '&scope=' . $this->oauthScope . '&redirect_uri=' .
+                $redirectUri . '&state=' . $session->get('oauth_state');
+            header("Location: ".$authUrl);
+            exit();
+        }
+        //თუ მოყვა code ესე იგი oauth2-ის მეორე ნაბიჯზე ვარ
+        else
+        {
+            //ამოვიღოთ state და შევადაროთ სესიაში შენახულს, თუ არ დაემთხვა, ესე იგი რაღაცა ნიტოა
+            if(strcmp($session->get('oauth_state'), $_GET['state']) != 0){
+                throw new Exception("The state is not correct from Intuit Server. Consider your app is hacked.");
+            }
+
+            // POST and wait for JSON response
+            $curl = curl_init();
+            $header = [
+                'Accept: application/json',
+                'Authorization: Basic ' . base64_encode($this->clientId . ':' . $this->clientSecret),
+                'Content-Type: application/x-www-form-urlencoded'
+            ];
+            curl_setopt_array($curl, [
+                CURLOPT_POST => 1,
+                CURLOPT_RETURNTRANSFER => 1,
+                CURLOPT_URL => $tokenEndPointUrl,
+                CURLOPT_POSTFIELDS => http_build_query([
+                    'grant_type' => $grantType,
+                    'code' => $code,
+                    'redirect_uri' => $redirectUri
+                ]),
+                CURLOPT_HTTPHEADER => $header
+            ]);
+            $result = curl_exec($curl);
+            // check for errors, just in case
+            if ($curl_error = curl_error($curl)) {
+                throw new Exception($curl_error);
+            } else {
+                $result = json_decode($result, true);
+            }
+            curl_close($curl);
+
+            // მიღებული ტოკენების შენახვა ბაზაში, key_storage_item ცხრილში
+            $ks->set('quickbooks.access-token', $result['access_token']);
+            $ks->set('quickbooks.access-token-expires-in', $result['expires_in']);
+            $ks->set('quickbooks.refresh-token', $result['refresh_token']);
+            $ks->set('quickbooks.refresh-token-expires-in', $result['x_refresh_token_expires_in']);
+            $ks->set('quickbooks.realm-id', $_GET['realmId']);
+
+            //დავხუროთ CONNECT-ზე დაჭერით ამომხტარი ავტორიზაციის ფანჯარა
+            echo '<script type="text/javascript">
+                // refresh davakomentare, cross-originebis da sxva rameebis gamo jobia im fanjaras
+                // postMessage mivce da tviton mixedos tavs
+                //window.opener.location.href = window.opener.location.href;
+                window.opener.postMessage("success", "*");
+                window.close();
+            </script>';
+        }
     }
 
     // access token expires in an hour, reconnect function revokes it using refresh token
