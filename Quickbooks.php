@@ -3,9 +3,15 @@
 namespace omcrn\quickbooks;
 
 use Exception;
+use frontend\Helpers;
+use QuickBooksOnline\API\Data\IPPCustomer;
+use QuickBooksOnline\API\Data\IPPPaymentMethod;
 use QuickBooksOnline\API\DataService\DataService;
+use QuickBooksOnline\API\Facades\Account;
 use QuickBooksOnline\API\Facades\Customer;
 use QuickBooksOnline\API\Facades\Invoice;
+use QuickBooksOnline\API\Facades\Payment;
+use QuickBooksOnline\API\Facades\Item;
 use Yii;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
@@ -211,14 +217,36 @@ class Quickbooks extends Component
         $this->dataServiceInit();
     }
 
+    public function dataServiceGetObjectRetry($object, $id){
+        $objects = $this->dataService->Query("select * from " . $object . " where Id='" . $id . "'");
+        $error = $this->dataService->getLastError();
+        if ($error){
+            $statusCode = $error->getHttpStatusCode();
+            if (401 == $statusCode){
+                // 401 == token expired, need to reconnect
+                $this->reconnect();
+                // !!! recursive call
+                $objects = [$this->dataServiceGetObjectRetry($object, $id)];
+            }
+            else{
+                throw new Exception($statusCode . ' ' . $error->getOAuthHelperError());
+            }
+        }
+        if(!empty($objects) && sizeof($objects) == 1) {
+            //Helpers::dump($objects);
+            //Helpers::dump(current($objects));
+            return current($objects);
+        }
+        else{
+            throw new Exception("Incorrect Query or QB Object Not found");
+        }
+    }
+
     private function dataServiceCheckRetry($object){
         $resultObject = $this->dataService->add($object);
         $error = $this->dataService->getLastError();
-        if ($error !== null){
+        if ($error){
             $statusCode = $error->getHttpStatusCode();
-            echo "The Status code is: " . $statusCode . "\n";
-            echo "The Helper message is: " . $error->getOAuthHelperError() . "\n";
-            echo "The Response message is: " . $error->getResponseBody() . "\n";
             if (401 == $statusCode){
                 // 401 == token expired, need to reconnect
                 $this->reconnect();
@@ -236,8 +264,31 @@ class Quickbooks extends Component
         return $this->dataServiceCheckRetry(Customer::create($data));
     }
 
+    public function updateCustomer($id, $data){
+        $customer = $this->dataServiceGetObjectRetry("Customer", $id);
+        $updatedCustomer = Customer::update($customer, $data);
+        return $this->dataServiceCheckRetry($updatedCustomer);
+    }
+
+    // Turns out it is impossible to delete customer in QBO
+    // Therefore I just full update it with empty fields
+
+    // using new empty Customer will mitigate the overhead of calling SELECT prior to DELETE
+    // but no, I need syncToken, so SELECT is still necessary
+    // anyway, at least I don't have to manually clear all fields now
+    public function deleteCustomer($id){
+        $oldCustomer = $this->dataServiceGetObjectRetry("Customer", $id);
+        $oldCustomer->Active = "false";
+        Helpers::dump($oldCustomer);//exit;
+        return $this->dataServiceCheckRetry($oldCustomer);
+    }
+
     public function createInvoice($data){
         return $this->dataServiceCheckRetry(Invoice::create($data));
+    }
+
+    public function createPayment($data){
+        return $this->dataServiceCheckRetry(Payment::create($data));
     }
 
     public function viewInvoices($pageNumber, $pageSize){
@@ -250,5 +301,46 @@ class Quickbooks extends Component
             exit();
         }
         return $allInvoices;
+    }
+
+    public function createItem($data){
+        return $this->dataServiceCheckRetry(Item::create($data));
+    }
+
+    public function createAccount($data){
+        return $this->dataServiceCheckRetry(Account::create($data));
+    }
+
+    public function createPaymentMethod($data){
+        $method = new IPPPaymentMethod();
+        $method->domain = "QBO";
+        $method->Type = $data['type'];
+        $method->Active = $data['active'];
+        $method->Name = $data['name'];
+        return $this->dataServiceCheckRetry($method);
+    }
+
+    public function viewPaymentMethods($pageNumber, $pageSize){
+        $allPaymentMethods = $this->dataService->FindAll('PaymentMethod', $pageNumber, $pageSize);
+        $error = $this->dataService->getLastError();
+        if ($error != null) {
+            echo "The Status code is: " . $error->getHttpStatusCode() . "\n";
+            echo "The Helper message is: " . $error->getOAuthHelperError() . "\n";
+            echo "The Response message is: " . $error->getResponseBody() . "\n";
+            exit();
+        }
+        return $allPaymentMethods;
+    }
+
+    public function viewPayments($pageNumber, $pageSize){
+        $allPayments = $this->dataService->FindAll('Payment', $pageNumber, $pageSize);
+        $error = $this->dataService->getLastError();
+        if ($error != null) {
+            echo "The Status code is: " . $error->getHttpStatusCode() . "\n";
+            echo "The Helper message is: " . $error->getOAuthHelperError() . "\n";
+            echo "The Response message is: " . $error->getResponseBody() . "\n";
+            exit();
+        }
+        return $allPayments;
     }
 }
