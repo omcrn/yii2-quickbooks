@@ -254,7 +254,7 @@ class Quickbooks extends Component
                 return $this->dataServiceCheckRetry($object);
             }
             else{
-                throw new Exception($statusCode . ' ' . $error->getOAuthHelperError());
+                throw new Exception($statusCode . ' ' . $error->getOAuthHelperError() . ' ' . $error->getResponseBody());
             }
         }
         return $resultObject;
@@ -262,6 +262,18 @@ class Quickbooks extends Component
 
     public function createCustomer($data){
         return $this->dataServiceCheckRetry(Customer::create($data));
+    }
+
+    public function viewCustomers($pageNumber, $pageSize){
+        $allCustomers = $this->dataService->FindAll('Customer', $pageNumber, $pageSize);
+        $error = $this->dataService->getLastError();
+        if ($error != null) {
+            echo "The Status code is: " . $error->getHttpStatusCode() . "\n";
+            echo "The Helper message is: " . $error->getOAuthHelperError() . "\n";
+            echo "The Response message is: " . $error->getResponseBody() . "\n";
+            exit();
+        }
+        return $allCustomers;
     }
 
     public function updateCustomer($id, $data){
@@ -287,10 +299,6 @@ class Quickbooks extends Component
         return $this->dataServiceCheckRetry(Invoice::create($data));
     }
 
-    public function createPayment($data){
-        return $this->dataServiceCheckRetry(Payment::create($data));
-    }
-
     public function viewInvoices($pageNumber, $pageSize){
         $allInvoices = $this->dataService->FindAll('Invoice', $pageNumber, $pageSize);
         $error = $this->dataService->getLastError();
@@ -303,8 +311,37 @@ class Quickbooks extends Component
         return $allInvoices;
     }
 
+    public function createPayment($data){
+        return $this->dataServiceCheckRetry(Payment::create($data));
+    }
+
+    public function viewPayments($pageNumber, $pageSize){
+        $allPayments = $this->dataService->FindAll('Payment', $pageNumber, $pageSize);
+        $error = $this->dataService->getLastError();
+        if ($error != null) {
+            echo "The Status code is: " . $error->getHttpStatusCode() . "\n";
+            echo "The Helper message is: " . $error->getOAuthHelperError() . "\n";
+            echo "The Response message is: " . $error->getResponseBody() . "\n";
+            exit();
+        }
+        return $allPayments;
+    }
+
     public function createItem($data){
+        Helpers::dump($data);//exit;
         return $this->dataServiceCheckRetry(Item::create($data));
+    }
+
+    public function viewItems($pageNumber, $pageSize){
+        $allItems = $this->dataService->FindAll('Item', $pageNumber, $pageSize);
+        $error = $this->dataService->getLastError();
+        if ($error != null) {
+            echo "The Status code is: " . $error->getHttpStatusCode() . "\n";
+            echo "The Helper message is: " . $error->getOAuthHelperError() . "\n";
+            echo "The Response message is: " . $error->getResponseBody() . "\n";
+            exit();
+        }
+        return $allItems;
     }
 
     public function createAccount($data){
@@ -330,17 +367,5 @@ class Quickbooks extends Component
             exit();
         }
         return $allPaymentMethods;
-    }
-
-    public function viewPayments($pageNumber, $pageSize){
-        $allPayments = $this->dataService->FindAll('Payment', $pageNumber, $pageSize);
-        $error = $this->dataService->getLastError();
-        if ($error != null) {
-            echo "The Status code is: " . $error->getHttpStatusCode() . "\n";
-            echo "The Helper message is: " . $error->getOAuthHelperError() . "\n";
-            echo "The Response message is: " . $error->getResponseBody() . "\n";
-            exit();
-        }
-        return $allPayments;
     }
 }
