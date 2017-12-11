@@ -12,6 +12,7 @@ use QuickBooksOnline\API\Facades\Customer;
 use QuickBooksOnline\API\Facades\Invoice;
 use QuickBooksOnline\API\Facades\Payment;
 use QuickBooksOnline\API\Facades\Item;
+use QuickBooksOnline\API\Facades\RefundReceipt;
 use Yii;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
@@ -78,7 +79,7 @@ class Quickbooks extends Component
         //სადაც იგზავნება POST მეორე ნაბიჯზე, ესეც discovery document-დან მომაქვს
         $tokenEndPointUrl = $discoveryDocument['token_endpoint']; //$configs['tokenEndPointUrl'];
 
-        $redirectUri = 'http://victorian-society.dev' . $ks->get('quickbooks.redirect-url');
+        $redirectUri = Yii::getAlias('@frontendUrl') . $ks->get('quickbooks.redirect-url');
 
         // დოკუმენტაციაში წერია, რომ QBO-ს მიმდინარე ვერსიისათვის ყოველთვის იქნება code, მაინც გავიტანე ცვლადში,
         // თუ ოდესმე შეიცვლება, მარტივად მივაგნებ
@@ -243,7 +244,9 @@ class Quickbooks extends Component
     }
 
     private function dataServiceCheckRetry($object){
+        Helpers::dump($object);//exit;
         $resultObject = $this->dataService->add($object);
+        Helpers::dump($resultObject);exit;
         $error = $this->dataService->getLastError();
         if ($error){
             $statusCode = $error->getHttpStatusCode();
@@ -299,6 +302,25 @@ class Quickbooks extends Component
         return $this->dataServiceCheckRetry(Invoice::create($data));
     }
 
+    public function createEmptyInvoiceForDonation($quickbooksCustomerId, $amount){
+        return $this->createInvoice([
+            // QBO Auto Generates
+            //"DocNumber" => "Donation" . rand(),
+            //"LinkedTxn" => [],
+            "Line" => [
+                "Description" => "QBO auto-generated empty invoice for Donation type transactions",
+                "Amount" => $amount,
+                "DetailType" => "DescriptionOnly",
+                "DescriptionLineDetail" => [
+                    null
+                ]
+            ],
+            "CustomerRef" => [
+                "value" => $quickbooksCustomerId,
+            ]
+        ]);
+    }
+
     public function viewInvoices($pageNumber, $pageSize){
         $allInvoices = $this->dataService->FindAll('Invoice', $pageNumber, $pageSize);
         $error = $this->dataService->getLastError();
@@ -342,6 +364,23 @@ class Quickbooks extends Component
             exit();
         }
         return $allItems;
+    }
+
+    public function createRefund($data){
+        //Helpers::dump($data);exit;
+        return $this->dataServiceCheckRetry(RefundReceipt::create($data));
+    }
+
+    public function viewRefunds($pageNumber, $pageSize){
+        $allRefunds = $this->dataService->FindAll('RefundReceipt', $pageNumber, $pageSize);
+        $error = $this->dataService->getLastError();
+        if ($error != null) {
+            echo "The Status code is: " . $error->getHttpStatusCode() . "\n";
+            echo "The Helper message is: " . $error->getOAuthHelperError() . "\n";
+            echo "The Response message is: " . $error->getResponseBody() . "\n";
+            exit();
+        }
+        return $allRefunds;
     }
 
     public function createAccount($data){
