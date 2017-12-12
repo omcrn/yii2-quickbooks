@@ -243,6 +243,31 @@ class Quickbooks extends Component
         }
     }
 
+    public function dataServiceQueryObjectRetry($object, $where){
+        $objects = $this->dataService->Query("select * from " . $object . " where " . $where);
+        $error = $this->dataService->getLastError();
+        if ($error){
+            $statusCode = $error->getHttpStatusCode();
+            if (401 == $statusCode){
+                // 401 == token expired, need to reconnect
+                $this->reconnect();
+                // !!! recursive call
+                $objects = [$this->dataServiceQueryObjectRetry($object, $where)];
+            }
+            else{
+                throw new Exception($statusCode . ' ' . $error->getOAuthHelperError());
+            }
+        }
+        if(!empty($objects) && sizeof($objects) == 1) {
+            //Helpers::dump($objects);
+            //Helpers::dump(current($objects));
+            return current($objects);
+        }
+        else{
+            throw new Exception("Incorrect Query or QB Object Not found");
+        }
+    }
+
     private function dataServiceCheckRetry($object){
 //        Helpers::dump($object);//exit;
         $resultObject = $this->dataService->add($object);
@@ -351,7 +376,7 @@ class Quickbooks extends Component
     }
 
     public function createItem($data){
-        //Helpers::dump($data);//exit;
+        //Helpers::dump($data);exit;
         return $this->dataServiceCheckRetry(Item::create($data));
     }
 
