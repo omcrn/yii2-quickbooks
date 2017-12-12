@@ -67,7 +67,7 @@ class Quickbooks extends Component
     public function connect(){
         $ks = Yii::$app->keyStorage;
         $session = Yii::$app->session;
-        var_dump(Yii::$app->request->get());
+        //var_dump(Yii::$app->request->get());
 
         // discovery document
         $discoveryDocument = json_decode(file_get_contents($this->discoveryDocumentUrl), true);
@@ -244,9 +244,9 @@ class Quickbooks extends Component
     }
 
     private function dataServiceCheckRetry($object){
-        Helpers::dump($object);//exit;
+//        Helpers::dump($object);//exit;
         $resultObject = $this->dataService->add($object);
-        Helpers::dump($resultObject);exit;
+//        Helpers::dump($resultObject);exit;
         $error = $this->dataService->getLastError();
         if ($error){
             $statusCode = $error->getHttpStatusCode();
@@ -294,7 +294,7 @@ class Quickbooks extends Component
     public function deleteCustomer($id){
         $oldCustomer = $this->dataServiceGetObjectRetry("Customer", $id);
         $oldCustomer->Active = "false";
-        Helpers::dump($oldCustomer);//exit;
+        //Helpers::dump($oldCustomer);//exit;
         return $this->dataServiceCheckRetry($oldCustomer);
     }
 
@@ -302,6 +302,7 @@ class Quickbooks extends Component
         return $this->dataServiceCheckRetry(Invoice::create($data));
     }
 
+    // jerjerobit gadavwyvite agar gamoviyeno, iyos mainc, sabolood tu agar dagvchirda, mere wavshli
     public function createEmptyInvoiceForDonation($quickbooksCustomerId, $amount){
         return $this->createInvoice([
             // QBO Auto Generates
@@ -350,7 +351,7 @@ class Quickbooks extends Component
     }
 
     public function createItem($data){
-        Helpers::dump($data);//exit;
+        //Helpers::dump($data);//exit;
         return $this->dataServiceCheckRetry(Item::create($data));
     }
 
