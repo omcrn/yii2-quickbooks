@@ -33,6 +33,10 @@ class Quickbooks extends Component
      */
     private $dataService;
 
+    const NEED_TO_CLICK_QUICKBOOKS_CONNECT_MESSAGE = "System is not connected to Quickbooks Online.
+
+You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and then \"Connect to Quickbooks\" button.";
+
 
     public function init()
     {
@@ -162,7 +166,7 @@ class Quickbooks extends Component
 
         // if refresh_token is not set, it means the app never connected to quickbooks
         if (!$this->refreshToken){
-            throw new Exception('Refresh token not set. You need to click CONNECT QUICKBOOKS button');
+            throw new Exception(self::NEED_TO_CLICK_QUICKBOOKS_CONNECT_MESSAGE);
         }
 
         // discovery document
@@ -204,7 +208,7 @@ class Quickbooks extends Component
         curl_close($curl);
         // if reponse JSON contains "error" key, it means token is either expired or never set
         if (isset($result['error'])){
-            throw new Exception($result['error'] . '. Need to click CONNECT QUICKBOOKS button');
+            throw new Exception(self::NEED_TO_CLICK_QUICKBOOKS_CONNECT_MESSAGE);
         }
 
         // save the received tokens in key_storage_item and in the instance
@@ -230,7 +234,7 @@ class Quickbooks extends Component
                 $objects = [$this->dataServiceGetObjectRetry($object, $id)];
             }
             else{
-                throw new Exception($statusCode . ' ' . $error->getOAuthHelperError());
+                throw new Exception($statusCode . ' ' . $error->getOAuthHelperError() . ' ' . $error->getResponseBody());
             }
         }
         if(!empty($objects) && sizeof($objects) == 1) {
@@ -239,6 +243,7 @@ class Quickbooks extends Component
             return current($objects);
         }
         else{
+            Helpers::dump($objects);
             throw new Exception("Incorrect Query or QB Object Not found");
         }
     }
@@ -255,15 +260,15 @@ class Quickbooks extends Component
                 $objects = [$this->dataServiceQueryObjectRetry($object, $where)];
             }
             else{
-                throw new Exception($statusCode . ' ' . $error->getOAuthHelperError());
+                throw new Exception($statusCode . ' ' . $error->getOAuthHelperError() . ' ' . $error->getResponseBody());
             }
         }
         if(!empty($objects) && sizeof($objects) == 1) {
-            //Helpers::dump($objects);
             //Helpers::dump(current($objects));
             return current($objects);
         }
         else{
+            //Helpers::dump($objects);
             throw new Exception("Incorrect Query or QB Object Not found");
         }
     }
@@ -413,6 +418,12 @@ class Quickbooks extends Component
         return $this->dataServiceCheckRetry(Account::create($data));
     }
 
+    public function updateAccount($id, $data){
+        $account = $this->dataServiceGetObjectRetry("Account", $id);
+        $updatedAccount = Account::update($account, $data);
+        return $this->dataServiceCheckRetry($updatedAccount);
+    }
+
     public function createPaymentMethod($data){
         $method = new IPPPaymentMethod();
         $method->domain = "QBO";
@@ -432,5 +443,17 @@ class Quickbooks extends Component
             exit();
         }
         return $allPaymentMethods;
+    }
+
+    public function viewAccounts($pageNumber, $pageSize){
+        $allAccounts = $this->dataService->FindAll('Account', $pageNumber, $pageSize);
+        $error = $this->dataService->getLastError();
+        if ($error != null) {
+            echo "The Status code is: " . $error->getHttpStatusCode() . "\n";
+            echo "The Helper message is: " . $error->getOAuthHelperError() . "\n";
+            echo "The Response message is: " . $error->getResponseBody() . "\n";
+            exit();
+        }
+        return $allAccounts;
     }
 }
