@@ -238,8 +238,6 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
             }
         }
         if(!empty($objects) && sizeof($objects) == 1) {
-            //Helpers::dump($objects);
-            //Helpers::dump(current($objects));
             return current($objects);
         }
         else{
@@ -264,19 +262,15 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
             }
         }
         if(!empty($objects) && sizeof($objects) == 1) {
-            //Helpers::dump(current($objects));
             return current($objects);
         }
         else{
-            //Helpers::dump($objects);
             throw new Exception("Incorrect Query or QB Object Not found");
         }
     }
 
     private function dataServiceCheckRetry($object){
-//        Helpers::dump($object);//exit;
         $resultObject = $this->dataService->add($object);
-//        Helpers::dump($resultObject);exit;
         $error = $this->dataService->getLastError();
         if ($error){
             $statusCode = $error->getHttpStatusCode();
@@ -291,6 +285,11 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
             }
         }
         return $resultObject;
+    }
+
+    public function deleteObject($object){
+        $object->Active = "false";
+        return $this->dataServiceCheckRetry($object);
     }
 
     public function createCustomer($data){
@@ -315,41 +314,15 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
         return $this->dataServiceCheckRetry($updatedCustomer);
     }
 
-    // Turns out it is impossible to delete customer in QBO
-    // Therefore I just full update it with empty fields
-
-    // using new empty Customer will mitigate the overhead of calling SELECT prior to DELETE
-    // but no, I need syncToken, so SELECT is still necessary
+    // I need syncToken, so SELECT is still necessary
     // anyway, at least I don't have to manually clear all fields now
     public function deleteCustomer($id){
         $oldCustomer = $this->dataServiceGetObjectRetry("Customer", $id);
-        $oldCustomer->Active = "false";
-        //Helpers::dump($oldCustomer);//exit;
-        return $this->dataServiceCheckRetry($oldCustomer);
+        return $this->deleteObject($oldCustomer);
     }
 
     public function createInvoice($data){
         return $this->dataServiceCheckRetry(Invoice::create($data));
-    }
-
-    // jerjerobit gadavwyvite agar gamoviyeno, iyos mainc, sabolood tu agar dagvchirda, mere wavshli
-    public function createEmptyInvoiceForDonation($quickbooksCustomerId, $amount){
-        return $this->createInvoice([
-            // QBO Auto Generates
-            //"DocNumber" => "Donation" . rand(),
-            //"LinkedTxn" => [],
-            "Line" => [
-                "Description" => "QBO auto-generated empty invoice for Donation type transactions",
-                "Amount" => $amount,
-                "DetailType" => "DescriptionOnly",
-                "DescriptionLineDetail" => [
-                    null
-                ]
-            ],
-            "CustomerRef" => [
-                "value" => $quickbooksCustomerId,
-            ]
-        ]);
     }
 
     public function viewInvoices($pageNumber, $pageSize){
@@ -381,7 +354,6 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
     }
 
     public function createItem($data){
-        //Helpers::dump($data);exit;
         return $this->dataServiceCheckRetry(Item::create($data));
     }
 
@@ -398,7 +370,6 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
     }
 
     public function createRefund($data){
-        //Helpers::dump($data);exit;
         return $this->dataServiceCheckRetry(RefundReceipt::create($data));
     }
 
