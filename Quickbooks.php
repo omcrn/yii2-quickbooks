@@ -147,6 +147,9 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
             $ks->set('quickbooks.refresh-token-expires-in', $result['x_refresh_token_expires_in']);
             $ks->set('quickbooks.realm-id', $_GET['realmId']);
 
+            // quickbooks connected, no need to display that message
+            $ks->set('quickbooks.need-connect', "");
+
             //დავხუროთ CONNECT-ზე დაჭერით ამომხტარი ავტორიზაციის ფანჯარა
             echo '<script type="text/javascript">
                 // refresh davakomentare, cross-originebis da sxva rameebis gamo jobia im fanjaras
@@ -166,6 +169,7 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
 
         // if refresh_token is not set, it means the app never connected to quickbooks
         if (!$this->refreshToken){
+            $ks->set('quickbooks.need-connect', "");
             throw new Exception(self::NEED_TO_CLICK_QUICKBOOKS_CONNECT_MESSAGE);
         }
 
@@ -208,6 +212,7 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
         curl_close($curl);
         // if reponse JSON contains "error" key, it means token is either expired or never set
         if (isset($result['error'])){
+            $ks->set('quickbooks.need-connect', "true");
             throw new Exception(self::NEED_TO_CLICK_QUICKBOOKS_CONNECT_MESSAGE);
         }
 
@@ -218,6 +223,9 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
         $this->refreshToken = $result['refresh_token'];
         $ks->set('quickbooks.refresh-token', $this->refreshToken);
         $ks->set('quickbooks.refresh-token-expires-in', $result['x_refresh_token_expires_in']);
+
+        // quickbooks connected, no need to display that message
+        $ks->set('quickbooks.need-connect', "");
 
         $this->dataServiceInit();
     }
@@ -241,7 +249,7 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
             return current($objects);
         }
         else{
-            Helpers::dump($objects);
+            //Helpers::dump($objects);
             throw new Exception("Incorrect Query or QB Object Not found");
         }
     }
@@ -322,6 +330,7 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
     }
 
     public function createInvoice($data){
+        //Helpers::dump($data);exit;
         return $this->dataServiceCheckRetry(Invoice::create($data));
     }
 
