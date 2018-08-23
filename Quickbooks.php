@@ -8,6 +8,7 @@ use QuickBooksOnline\API\Data\IPPCustomer;
 use QuickBooksOnline\API\Data\IPPPaymentMethod;
 use QuickBooksOnline\API\DataService\DataService;
 use QuickBooksOnline\API\Facades\Account;
+use QuickBooksOnline\API\Facades\CreditMemo;
 use QuickBooksOnline\API\Facades\Customer;
 use QuickBooksOnline\API\Facades\Invoice;
 use QuickBooksOnline\API\Facades\Payment;
@@ -74,7 +75,12 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
         //var_dump(Yii::$app->request->get());
 
         // discovery document
-        $discoveryDocument = json_decode(file_get_contents($this->discoveryDocumentUrl), true);
+        try {
+            $discoveryDocument = json_decode(file_get_contents($this->discoveryDocumentUrl), true);
+        }
+        catch (Exception $e){
+            throw new Exception("Internet connection problem: " . $e->getMessage());
+        }
 
         // ready the params, just for readability
 
@@ -330,7 +336,7 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
     }
 
     public function createInvoice($data){
-        //Helpers::dump($data);exit;
+//        Helpers::dump($data);exit;
         return $this->dataServiceCheckRetry(Invoice::create($data));
     }
 
@@ -344,6 +350,10 @@ You need to go to \"Configurations\" in menu, click on Quickbooks Config tab and
             exit();
         }
         return $allInvoices;
+    }
+
+    public function createCreditMemo($data){
+        return $this->dataServiceCheckRetry(CreditMemo::create($data));
     }
 
     public function createPayment($data){
